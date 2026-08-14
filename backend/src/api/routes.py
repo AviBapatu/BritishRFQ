@@ -22,10 +22,20 @@ def create_rfq(rfq_in: RFQBase, session: Session = Depends(get_session)):
     
     return rfq
 
-@router.get("/rfqs", response_model=List[RFQRead])
+@router.get("/rfqs")
 def list_rfqs(session: Session = Depends(get_session)):
     rfqs = session.exec(select(RFQ)).all()
-    return rfqs
+    result = []
+    for rfq in rfqs:
+        l1_bid = session.exec(
+            select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
+        ).first()
+        result.append({
+            **rfq.model_dump(),
+            "current_l1_bid": l1_bid.total_value if l1_bid else None,
+            "current_l1_supplier": l1_bid.supplier_id if l1_bid else None
+        })
+    return result
 
 @router.get("/rfqs/{rfq_id}")
 def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
@@ -33,12 +43,20 @@ def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
         
-    bids = session.exec(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc())).all()
+    bids = session.exec(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
     logs = session.exec(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc())).all()
+    
+    ranked_bids = []
+    for index, bid in enumerate(bids):
+        ranked_bids.append({
+            **bid.model_dump(),
+            "rank": index + 1,
+            "rank_label": f"L{index + 1}"
+        })
     
     return {
         "rfq": rfq,
-        "bids": bids,
+        "bids": ranked_bids,
         "activity_logs": logs
     }
 
@@ -61,7 +79,7 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
 
     new_bid_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
 
-    prev_bids = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc())).all()
+    prev_bids = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
 
     if prev_bids:
         prev_l1_supplier = prev_bids[0].supplier_id
@@ -85,7 +103,7 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
     session.flush()
 
     new_bids = session.exec(
-        select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc())
+        select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
     ).all()
 
     new_l1_supplier = new_bids[0].supplier_id
