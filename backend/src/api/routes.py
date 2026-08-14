@@ -4,10 +4,43 @@ from datetime import datetime, timezone
 import json
 
 from ..core.database import get_session
-from ..models.domain import RFQ, Bid, BidCreate, BidRead, ActivityLog, RFQStatus
+from ..models.domain import RFQ, Bid, BidCreate, BidRead, ActivityLog, RFQStatus, RFQBase, RFQRead
+from typing import List
 from ..engine.auction_rules import evaluate_extension
+from ..engine.worker import schedule_auction_closure
 
 router = APIRouter()
+
+@router.post("/rfqs", response_model=RFQRead, status_code=status.HTTP_201_CREATED)
+def create_rfq(rfq_in: RFQBase, session: Session = Depends(get_session)):
+    rfq = RFQ(**rfq_in.model_dump())
+    session.add(rfq)
+    session.commit()
+    session.refresh(rfq)
+    
+    schedule_auction_closure(rfq)
+    
+    return rfq
+
+@router.get("/rfqs", response_model=List[RFQRead])
+def list_rfqs(session: Session = Depends(get_session)):
+    rfqs = session.exec(select(RFQ)).all()
+    return rfqs
+
+@router.get("/rfqs/{rfq_id}")
+def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
+    rfq = session.exec(select(RFQ).where(RFQ.id == rfq_id)).one_or_none()
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+        
+    bids = session.exec(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc())).all()
+    logs = session.exec(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc())).all()
+    
+    return {
+        "rfq": rfq,
+        "bids": bids,
+        "activity_logs": logs
+    }
 
 @router.post("/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)
 def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
@@ -23,9 +56,19 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
     if rfq.status != RFQStatus.OPEN or current_time >= rfq.bid_close_at:
         raise HTTPException(status_code=400, detail="Auction is closed for bidding")
 
+    if current_time < rfq.bid_start_at:
+        raise HTTPException(status_code=400, detail="Auction has not started yet")
+
+    new_bid_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
+
     prev_bids = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc())).all()
 
-    prev_l1_supplier = prev_bids[0].supplier_id if prev_bids else None
+    if prev_bids:
+        prev_l1_supplier = prev_bids[0].supplier_id
+        if new_bid_total >= prev_bids[0].total_value:
+            raise HTTPException(status_code=400, detail="Bid must be strictly lower than the current L1 bid")
+    else:
+        prev_l1_supplier = None
 
     prev_supplier_rank = next(
         (index for index, b in enumerate(prev_bids) if b.supplier_id == bid_in.supplier_id),
@@ -34,7 +77,7 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
 
     new_bid = Bid(
         **bid_in.model_dump(),
-        total_value=bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge,
+        total_value=new_bid_total,
         created_at=current_time
     )
 
@@ -70,6 +113,8 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
             metadata_snapshot=json.dumps({"old_close": old_close_str, "new_close": new_close.isoformat()})
         )
         session.add(extension_log)
+        
+        schedule_auction_closure(rfq)
 
     bid_log = ActivityLog(
         rfq_id=rfq.id,
