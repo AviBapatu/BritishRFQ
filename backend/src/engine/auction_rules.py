@@ -1,7 +1,7 @@
-from sqlalchemy import false
 from datetime import datetime, timedelta
 from typing import Tuple, Optional
 from ..models.domain import RFQ, ExtensionTrigger
+
 def evaluate_extension(
     rfq: RFQ, 
     bid_time: datetime, 
@@ -36,6 +36,9 @@ def evaluate_extension(
     if new_close_time > rfq.forced_close_at:
         new_close_time = rfq.forced_close_at
         reason += " (Clamped to Forced Close Time)"
+    
+    if new_close_time <= rfq.bid_close_at:
+        return False, None, None
 
     return True, new_close_time, reason
     
