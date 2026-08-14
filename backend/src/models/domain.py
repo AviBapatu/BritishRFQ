@@ -77,6 +77,7 @@ class Bid(BidBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True) 
     idempotency_key: UUID = Field(index=True)
+    payload_hash: str = Field(description="SHA-256 hash of canonical bid payload for idempotency comparison")
     total_value: float = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
     rfq: Optional[RFQ] = Relationship(back_populates="bids")
