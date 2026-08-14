@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 from typing import List, Optional
+from pydantic import field_validator
 
 class RFQStatus(str, Enum):
     OPEN = "OPEN"
@@ -25,6 +26,13 @@ class RFQBase(SQLModel):
     trigger_window_minutes: int = Field(ge=0)
     extension_minutes: int = Field(ge=0)
     extension_trigger: ExtensionTrigger
+
+    @field_validator("bid_close_at", "forced_close_at", mode="after")
+    @classmethod
+    def enforce_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc)
 
 class RFQ(RFQBase, table=True):
     __tablename__ = "rfqs"

@@ -19,13 +19,21 @@ def check_and_close_auction(rfq_id: int):
 
         current_time = datetime.now(timezone.utc)
 
-        if current_time >= rfq.forced_close_at:
+        forced_close_at = rfq.forced_close_at
+        if forced_close_at.tzinfo is None:
+            forced_close_at = forced_close_at.replace(tzinfo=timezone.utc)
+
+        if current_time >= forced_close_at:
             rfq.status = RFQStatus.FORCE_CLOSED
             session.add(rfq)
             session.commit()
             return
 
-        if current_time >= rfq.bid_close_at:
+        bid_close_at = rfq.bid_close_at
+        if bid_close_at.tzinfo is None:
+            bid_close_at = bid_close_at.replace(tzinfo=timezone.utc)
+
+        if current_time >= bid_close_at:
             rfq.status = RFQStatus.CLOSED
             session.add(rfq)
             session.commit()
