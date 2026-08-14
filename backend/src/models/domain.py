@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from sqlmodel import SQLModel, Field, Relationship
 from typing import List, Optional
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 class RFQStatus(str, Enum):
     OPEN = "OPEN"
@@ -20,19 +20,29 @@ class ExtensionTrigger(str, Enum):
 class RFQBase(SQLModel):
     title: str = Field(min_length=3, max_length=255)
     status: RFQStatus = Field(default=RFQStatus.OPEN, index=True)
+    bid_start_at: datetime
     bid_close_at: datetime
     forced_close_at: datetime
+    pickup_date: datetime
 
     trigger_window_minutes: int = Field(ge=0)
     extension_minutes: int = Field(ge=0)
     extension_trigger: ExtensionTrigger
 
-    @field_validator("bid_close_at", "forced_close_at", mode="after")
+    @field_validator("bid_start_at", "bid_close_at", "forced_close_at", "pickup_date", mode="after")
     @classmethod
     def enforce_utc(cls, v: datetime) -> datetime:
         if v.tzinfo is None:
             return v.replace(tzinfo=timezone.utc)
         return v.astimezone(timezone.utc)
+        
+    @model_validator(mode="after")
+    def validate_time_boundaries(self) -> "RFQBase":
+        if self.bid_start_at >= self.bid_close_at:
+            raise ValueError("bid_start_at must be before bid_close_at")
+        if self.bid_close_at >= self.forced_close_at:
+            raise ValueError("bid_close_at must be before forced_close_at")
+        return self
 
 class RFQ(RFQBase, table=True):
     __tablename__ = "rfqs"
@@ -45,10 +55,20 @@ class RFQ(RFQBase, table=True):
 class BidBase(SQLModel):
     rfq_id: int = Field(foreign_key="rfqs.id", index=True)
     supplier_id: str = Field(index=True)
+    carrier_name: str
+    transit_time: str
+    quote_validity: datetime
 
     freight_charge: float = Field(gt=0, description="Must be greater than 0")
     origin_charge: float = Field(ge=0)
     destination_charge: float = Field(ge=0)
+    
+    @field_validator("quote_validity", mode="after")
+    @classmethod
+    def enforce_utc(cls, v: datetime) -> datetime:
+        if v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v.astimezone(timezone.utc)
 
 class Bid(BidBase, table=True):
     __tablename__ = 'bids'
