@@ -1,68 +1,45 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlmodel import Session, select
 from datetime import datetime, timezone
+from uuid import UUID
 import json
 
 from ..core.database import get_session
-from ..models.domain import RFQ, Bid, BidCreate, BidRead, ActivityLog, RFQStatus, RFQBase, RFQRead
-from typing import List
+from ..models.domain import RFQ, Bid, BidCreate, BidRead, ActivityLog, RFQStatus
 from ..engine.auction_rules import evaluate_extension
 from ..engine.worker import schedule_auction_closure
 
 router = APIRouter()
 
-@router.post("/rfqs", response_model=RFQRead, status_code=status.HTTP_201_CREATED)
-def create_rfq(rfq_in: RFQBase, session: Session = Depends(get_session)):
-    rfq = RFQ(**rfq_in.model_dump())
-    session.add(rfq)
-    session.commit()
-    session.refresh(rfq)
-    
-    schedule_auction_closure(rfq)
-    
-    return rfq
-
-@router.get("/rfqs")
-def list_rfqs(session: Session = Depends(get_session)):
-    rfqs = session.exec(select(RFQ)).all()
-    result = []
-    for rfq in rfqs:
-        l1_bid = session.exec(
-            select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
-        ).first()
-        result.append({
-            **rfq.model_dump(),
-            "current_l1_bid": l1_bid.total_value if l1_bid else None,
-            "current_l1_supplier": l1_bid.supplier_id if l1_bid else None
-        })
-    return result
-
-@router.get("/rfqs/{rfq_id}")
-def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
-    rfq = session.exec(select(RFQ).where(RFQ.id == rfq_id)).one_or_none()
-    if not rfq:
-        raise HTTPException(status_code=404, detail="RFQ not found")
-        
-    bids = session.exec(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
-    logs = session.exec(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc())).all()
-    
-    ranked_bids = []
-    for index, bid in enumerate(bids):
-        ranked_bids.append({
-            **bid.model_dump(),
-            "rank": index + 1,
-            "rank_label": f"L{index + 1}"
-        })
-    
-    return {
-        "rfq": rfq,
-        "bids": ranked_bids,
-        "activity_logs": logs
-    }
-
 @router.post("/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)
-def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
+def submit_bid(
+    bid_in: BidCreate,
+    idempotency_key: UUID = Header(alias="Idempotency-Key"),
+    session: Session = Depends(get_session)
+):
     current_time = datetime.now(timezone.utc)
+
+    # Idempotency check: if this (supplier_id, idempotency_key) already produced a bid, return it
+    existing_bid = session.exec(
+        select(Bid).where(
+            Bid.supplier_id == bid_in.supplier_id,
+            Bid.idempotency_key == idempotency_key
+        )
+    ).one_or_none()
+
+    if existing_bid:
+        # Same key but different payload → reject
+        existing_total = existing_bid.freight_charge + existing_bid.origin_charge + existing_bid.destination_charge
+        new_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
+        if (existing_bid.rfq_id != bid_in.rfq_id
+            or existing_total != new_total
+            or existing_bid.carrier_name != bid_in.carrier_name):
+            raise HTTPException(
+                status_code=422,
+                detail="Idempotency key already used with a different payload"
+            )
+        # Same key, same payload → safe retry, return original bid
+        return existing_bid
 
     # will select the row we want to update then queues every request one by one so we can update everything inorder
     rfq = session.exec(
@@ -95,6 +72,7 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
 
     new_bid = Bid(
         **bid_in.model_dump(),
+        idempotency_key=idempotency_key,
         total_value=new_bid_total,
         created_at=current_time
     )
@@ -144,6 +122,3 @@ def submit_bid(bid_in: BidCreate, session: Session = Depends(get_session)):
     session.refresh(new_bid)
 
     return new_bid
-
-
-
