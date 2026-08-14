@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 from uuid import UUID
+import hashlib
 import json
 
 from ..core.database import get_session
@@ -11,6 +13,18 @@ from ..engine.worker import schedule_auction_closure
 
 router = APIRouter()
 
+def compute_payload_hash(bid_in: BidCreate) -> str:
+    canonical = json.dumps({
+        "rfq_id": bid_in.rfq_id,
+        "supplier_id": bid_in.supplier_id,
+        "carrier_name": bid_in.carrier_name,
+        "transit_time": bid_in.transit_time,
+        "freight_charge": str(bid_in.freight_charge),
+        "origin_charge": str(bid_in.origin_charge),
+        "destination_charge": str(bid_in.destination_charge),
+    }, sort_keys=True)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
 @router.post("/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)
 def submit_bid(
     bid_in: BidCreate,
@@ -18,8 +32,8 @@ def submit_bid(
     session: Session = Depends(get_session)
 ):
     current_time = datetime.now(timezone.utc)
+    incoming_hash = compute_payload_hash(bid_in)
 
-    # Idempotency check: if this (supplier_id, idempotency_key) already produced a bid, return it
     existing_bid = session.exec(
         select(Bid).where(
             Bid.supplier_id == bid_in.supplier_id,
@@ -28,17 +42,11 @@ def submit_bid(
     ).one_or_none()
 
     if existing_bid:
-        # Same key but different payload → reject
-        existing_total = existing_bid.freight_charge + existing_bid.origin_charge + existing_bid.destination_charge
-        new_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
-        if (existing_bid.rfq_id != bid_in.rfq_id
-            or existing_total != new_total
-            or existing_bid.carrier_name != bid_in.carrier_name):
+        if existing_bid.payload_hash != incoming_hash:
             raise HTTPException(
                 status_code=422,
                 detail="Idempotency key already used with a different payload"
             )
-        # Same key, same payload → safe retry, return original bid
         return existing_bid
 
     # will select the row we want to update then queues every request one by one so we can update everything inorder
@@ -73,6 +81,7 @@ def submit_bid(
     new_bid = Bid(
         **bid_in.model_dump(),
         idempotency_key=idempotency_key,
+        payload_hash=incoming_hash,
         total_value=new_bid_total,
         created_at=current_time
     )
@@ -118,7 +127,20 @@ def submit_bid(
         metadata_snapshot=json.dumps({"bid_value": new_bid.total_value, "new_rank": new_supplier_rank + 1})
     )
     session.add(bid_log)
-    session.commit()
-    session.refresh(new_bid)
 
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        existing_bid = session.exec(
+            select(Bid).where(
+                Bid.supplier_id == bid_in.supplier_id,
+                Bid.idempotency_key == idempotency_key
+            )
+        ).one_or_none()
+        if existing_bid:
+            return existing_bid
+        raise HTTPException(status_code=409, detail="Conflict during bid submission, please retry")
+
+    session.refresh(new_bid)
     return new_bid
