@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum
-from sqlmodel import SQLModel, Field, Relationship
+from uuid import UUID
+from sqlmodel import SQLModel, Field, Relationship, UniqueConstraint
 from typing import List, Optional
 from pydantic import field_validator, model_validator
 
@@ -72,7 +73,10 @@ class BidBase(SQLModel):
 
 class Bid(BidBase, table=True):
     __tablename__ = 'bids'
+    __table_args__ = (UniqueConstraint("supplier_id", "idempotency_key"),)
+
     id: Optional[int] = Field(default=None, primary_key=True) 
+    idempotency_key: UUID = Field(index=True)
     total_value: float = Field(index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
     rfq: Optional[RFQ] = Relationship(back_populates="bids")
@@ -97,5 +101,6 @@ class RFQRead(RFQBase):
 
 class BidRead(BidBase):
     id: int
+    idempotency_key: UUID
     total_value: float
     created_at: datetime
