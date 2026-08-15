@@ -6,7 +6,9 @@ export default function useAuctionSocket(rfqId, { onRankUpdate, onAuctionExtende
   useEffect(() => {
     if (!rfqId) return;
 
-    const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/api/ws';
+    const configuredBase = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/api/ws';
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const WS_BASE = configuredBase.replace(/^wss?:/, wsProtocol);
     const wsUrl = `${WS_BASE}/rfqs/${rfqId}`;
     socketRef.current = new WebSocket(wsUrl);
 
