@@ -6,8 +6,8 @@ from core.database import get_session
 
 # Use an in-memory SQLite database for fast testing, 
 # or a separate test Postgres DB if you want to test specific Postgres locks.
-TEST_DATABASE_URL = "sqlite:///./test.db"
-engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5433/gocomet_test_db"
+engine = create_engine(TEST_DATABASE_URL)
 
 @pytest.fixture(name="session")
 def session_fixture():
