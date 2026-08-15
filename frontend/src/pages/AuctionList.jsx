@@ -11,7 +11,7 @@ export default function AuctionList() {
 
   useEffect(() => {
     getRFQList()
-      .then(data => setRfqs(data))
+      .then(data => setRfqs([...data].reverse()))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
