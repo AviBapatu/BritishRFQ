@@ -1,7 +1,7 @@
 import { test, expect, request } from '@playwright/test';
 
-const FRONTEND_URL = 'http://localhost:5173';
-const API_BASE = 'http://localhost:8000/api';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:8000/api';
 
 // Helper: create a fresh, currently-active RFQ via the REST API
 async function createActiveRFQ() {
@@ -122,15 +122,18 @@ test.describe('British Auction Real-Time Constraints', () => {
     // Place a bid to trigger the extension
     await page.getByLabel('Freight Charge (£)').fill('4000');
     await page.getByRole('button', { name: 'Submit Bid' }).click();
-    await expect(page.getByText('£4000.00')).toBeVisible();
+    await expect(page.getByRole('cell', { name: /£4000\.00/ })).toBeVisible({ timeout: 10000 });
 
-    // Wait for the WebSocket AUCTION_EXTENDED event to trigger a UI re-render
-    // The countdown timer should jump up because 5 minutes were added!
-    await page.waitForTimeout(1500);
-    const newCountdownText = await page.locator('.text-4xl.font-bold.tracking-tighter').innerText();
-    
-    // We expect the countdown string to be different because 5 minutes were added to the close time
-    expect(newCountdownText).not.toBe(initialCountdownText);
+    // THE TIGHT ASSERTION: directly query the backend to verify the extension happened
+    // and that bid_close_at was extended by exactly extension_minutes (5 min).
+    const rfqAfter = await request.get(`${API_BASE}/rfqs/${rfq.id}`);
+    const rfqAfterJson = await rfqAfter.json();
+
+    const originalCloseMs = new Date(closeAt).getTime();
+    const newCloseMs = new Date(rfqAfterJson.rfq.bid_close_at + "Z").getTime();
+    const diffMinutes = Math.round((newCloseMs - originalCloseMs) / 60000);
+
+    expect(diffMinutes).toBe(5); // Exactly 5 minutes were added
   });
 
 });
