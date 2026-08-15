@@ -41,6 +41,7 @@ export default function AuctionList() {
               <div className="flex gap-6 text-sm text-muted-foreground">
                 <span>Pickup: {new Date(rfq.pickup_date + "Z").toLocaleDateString()}</span>
                 <span>Closes: {new Date(rfq.bid_close_at + "Z").toLocaleTimeString()}</span>
+                <span>Force Close: {new Date(rfq.forced_close_at + "Z").toLocaleTimeString()}</span>
                 <span>L1: {rfq.current_l1_bid ? `£${rfq.current_l1_bid.toFixed(2)}` : '—'}</span>
               </div>
             </Link>
