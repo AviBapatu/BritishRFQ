@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlmodel import Session, select
 
-from ..core.database import get_session
-from ..models.domain import RFQ, Bid, ActivityLog, RFQBase, RFQRead
-from ..engine.worker import schedule_auction_closure
+from core.database import get_session
+from models.domain import RFQ, Bid, ActivityLog, RFQBase, RFQRead
+from engine.worker import schedule_auction_closure
+from ws.manager import manager
 
 router = APIRouter()
 
@@ -55,3 +56,15 @@ def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
         "bids": ranked_bids,
         "activity_logs": logs
     }
+
+@router.websocket("/ws/rfqs/{rfq_id}")
+async def websocket_rfq(websocket: WebSocket, rfq_id: int):
+    await manager.connect(websocket, rfq_id)
+    try:
+        while True:
+            # We don't expect messages from the client in this one-way broadcast,
+            # but we need to receive to keep the connection alive and detect disconnects
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, rfq_id)
+

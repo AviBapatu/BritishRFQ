@@ -11,8 +11,10 @@ dependencies = [
     "apscheduler>=3.11.3",
     "fastapi>=0.141.1",
     "psycopg2-binary>=2.9.12",
+    "python-dotenv>=1.2.2",
     "sqlmodel>=0.0.39",
-    "uvicorn>=0.52.3",
+    "uvicorn[standard]>=0.52.3",
+    "websockets>=17.0.1",
 ]
 
 [project.scripts]
@@ -21,3 +23,10 @@ backend = "backend:main"
 [build-system]
 requires = ["uv_build>=0.12.3,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]

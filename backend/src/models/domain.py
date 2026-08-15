@@ -33,9 +33,9 @@ class RFQBase(SQLModel):
     @field_validator("bid_start_at", "bid_close_at", "forced_close_at", "pickup_date", mode="after")
     @classmethod
     def enforce_utc(cls, v: datetime) -> datetime:
-        if v.tzinfo is None:
-            return v.replace(tzinfo=timezone.utc)
-        return v.astimezone(timezone.utc)
+        if v.tzinfo is not None:
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
         
     @model_validator(mode="after")
     def validate_time_boundaries(self) -> "RFQBase":
@@ -67,9 +67,9 @@ class BidBase(SQLModel):
     @field_validator("quote_validity", mode="after")
     @classmethod
     def enforce_utc(cls, v: datetime) -> datetime:
-        if v.tzinfo is None:
-            return v.replace(tzinfo=timezone.utc)
-        return v.astimezone(timezone.utc)
+        if v.tzinfo is not None:
+            return v.astimezone(timezone.utc).replace(tzinfo=None)
+        return v
 
 class Bid(BidBase, table=True):
     __tablename__ = 'bids'

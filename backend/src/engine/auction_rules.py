@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
-from ..models.domain import RFQ, ExtensionTrigger
+from models.domain import RFQ, ExtensionTrigger
 
 def evaluate_extension(
     rfq: RFQ, 
@@ -9,8 +9,10 @@ def evaluate_extension(
     l1_changed: bool) -> Tuple[bool, Optional[datetime], Optional[str]]:
     # Will be returning should_extend, new_close_time, reason_string
 
+    bid_close_at = rfq.bid_close_at.replace(tzinfo=timezone.utc) if rfq.bid_close_at.tzinfo is None else rfq.bid_close_at
+    
     # checking if bidding is inside the trigger window
-    trigger_start_time = rfq.bid_close_at - timedelta(minutes=rfq.trigger_window_minutes)
+    trigger_start_time = bid_close_at - timedelta(minutes=rfq.trigger_window_minutes)
 
     if bid_time < trigger_start_time:
         return False, None, None # early to trigger an extension

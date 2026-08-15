@@ -1,9 +1,11 @@
+import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlmodel import Session, select
 from datetime import datetime, timezone
 
 from core.database import engine
 from models.domain import RFQ, RFQStatus, ActivityLog
+from ws.manager import manager
 
 scheduler = BackgroundScheduler()
 
@@ -32,6 +34,7 @@ def check_and_close_auction(rfq_id: int):
                 reason="Forced close time reached"
             ))
             session.commit()
+            asyncio.run(manager.broadcast_to_rfq(rfq.id, {"type": "AUCTION_CLOSED", "message": "Auction was forcefully closed"}))
             return
 
         bid_close_at = rfq.bid_close_at
@@ -47,6 +50,7 @@ def check_and_close_auction(rfq_id: int):
                 reason="Bid close time reached with no further extensions"
             ))
             session.commit()
+            asyncio.run(manager.broadcast_to_rfq(rfq.id, {"type": "AUCTION_CLOSED", "message": "Auction has closed natively"}))
             return
         session.commit()
 
