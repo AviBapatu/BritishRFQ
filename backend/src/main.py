@@ -24,13 +24,18 @@ async def lifespan(app: FastAPI):
     # Shutdown logic
     await manager.shutdown()
 
+import os
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="GoComet British Auction RFQ System", lifespan=lifespan)
 
+# Get frontend URLs from environment, default to local Vite dev server
+frontend_url_str = os.getenv("FRONTEND_URL", "http://localhost:5173,http://127.0.0.1:5173")
+allowed_origins = [url.strip() for url in frontend_url_str.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], # Vite frontend URLs
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
