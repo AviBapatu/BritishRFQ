@@ -44,11 +44,11 @@ async def get_rfq_details(rfq_id: int, session: AsyncSession = Depends(get_sessi
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
         
-    bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc()))
+    bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc()).limit(100))
     bids = bids_result.scalars().all()
     
-    logs_result = await session.execute(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc()))
-    logs = logs_result.scalars().all()
+    logs_result = await session.execute(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.desc()).limit(100))
+    logs = list(reversed(logs_result.scalars().all()))
     
     ranked_bids = []
     for index, bid in enumerate(bids):

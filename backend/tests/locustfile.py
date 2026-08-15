@@ -18,8 +18,21 @@ class SupplierUser(HttpUser):
         supplier_id = f"locust_supplier_{random.randint(1, 1000)}"
         now = datetime.now(timezone.utc)
         
-        # Freight strictly decreases by 0.01 on every single generated bid
-        freight = next(bid_counter) / 100.0
+        # Fetch current RFQ state to get the actual L1 bid
+        response = self.client.get("/api/rfqs/52", name="/api/rfqs/[id]")
+        if response.status_code == 200:
+            data = response.json()
+            bids = data.get("bids", [])
+            if bids:
+                current_l1 = bids[0]["total_value"]
+                # We want total_value to be lower than current_l1.
+                # total_value = freight + 200. So freight = target - 200
+                target_total = current_l1 - random.uniform(0.01, 1.0)
+                freight = max(0.01, target_total - 200.0)
+            else:
+                freight = 4000.0
+        else:
+            freight = 4000.0
         
         payload = {
             "rfq_id": 52,
@@ -27,7 +40,7 @@ class SupplierUser(HttpUser):
             "carrier_name": f"Carrier {supplier_id}",
             "transit_time": "2 days",
             "quote_validity": (now + timedelta(days=30)).isoformat(),
-            "freight_charge": freight,
+            "freight_charge": round(freight, 2),
             "origin_charge": 100.0,
             "destination_charge": 100.0
         }
