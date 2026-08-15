@@ -35,13 +35,13 @@ export default function AuctionDetails() {
         bid_close_at: data.rfq.bid_close_at + "Z",
         forced_close_at: data.rfq.forced_close_at + "Z",
         pickup_date: data.rfq.pickup_date + "Z",
-        created_at: data.rfq.created_at, // stored as local time, no Z needed
+        created_at: data.rfq.created_at,
       });
       setBids(data.bids.map(b => ({
         ...b,
         totalValue: b.total_value,
         carrierName: b.carrier_name,
-        time: new Date(b.created_at).toLocaleTimeString() // local time, no Z
+        time: new Date(b.created_at).toLocaleTimeString()
       })));
       setLogs(data.activity_logs.map(log => ({
         id: log.id,
@@ -49,7 +49,7 @@ export default function AuctionDetails() {
         message: JSON.parse(log.metadata_snapshot)?.bid_value
           ? `New Bid: £${JSON.parse(log.metadata_snapshot).bid_value}`
           : log.reason || "Event occurred",
-        time: new Date(log.created_at).toLocaleTimeString() // local time, no Z
+        time: new Date(log.created_at).toLocaleTimeString()
       })));
       setError(null);
     } catch (err) {
@@ -115,7 +115,6 @@ export default function AuctionDetails() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: info + ranking */}
         <div className="lg:col-span-2 space-y-4">
           <div className="border rounded-md p-4 text-sm">
             <p className="font-medium mb-2">Auction Information</p>
@@ -130,7 +129,6 @@ export default function AuctionDetails() {
           <RankingTable bids={bids} />
         </div>
 
-        {/* Right: countdown, bid form, log */}
         <div className="space-y-4">
           <Countdown bidCloseAt={rfq.bid_close_at} />
           {rfq.status === 'OPEN' && (
