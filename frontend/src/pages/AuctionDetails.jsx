@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Countdown from '@/components/Countdown';
 import BidForm from '@/components/BidForm';
@@ -38,9 +37,9 @@ export default function AuctionDetails() {
       setLogs(data.activity_logs.map(log => ({
         id: log.id,
         eventType: log.event_type,
-        message: JSON.parse(log.metadata_snapshot)?.bid_value 
-            ? `New Bid: £${JSON.parse(log.metadata_snapshot).bid_value}` 
-            : log.reason || "Event occurred",
+        message: JSON.parse(log.metadata_snapshot)?.bid_value
+          ? `New Bid: £${JSON.parse(log.metadata_snapshot).bid_value}`
+          : log.reason || "Event occurred",
         time: new Date(log.created_at + "Z").toLocaleTimeString()
       })));
       setError(null);
@@ -51,9 +50,7 @@ export default function AuctionDetails() {
     }
   }, [rfqId]);
 
-  useEffect(() => {
-    fetchAuctionData();
-  }, [fetchAuctionData]);
+  useEffect(() => { fetchAuctionData(); }, [fetchAuctionData]);
 
   const handleRankUpdate = useCallback(() => { fetchAuctionData(); }, [fetchAuctionData]);
   const handleAuctionExtended = useCallback((data) => {
@@ -74,86 +71,62 @@ export default function AuctionDetails() {
     try {
       await submitBidAPI({
         rfq_id: rfqId,
-        supplier_id: "demo_supplier", // In reality, this comes from auth context
+        supplier_id: "demo_supplier",
         carrier_name: "You (Demo Carrier)",
-        transit_time: "2 days", // Hardcoded for demo
-        quote_validity: new Date(new Date().getTime() + 86400000).toISOString(), // +1 day
+        transit_time: "2 days",
+        quote_validity: new Date(new Date().getTime() + 86400000).toISOString(),
         freight_charge: data.freight,
         origin_charge: data.origin,
         destination_charge: data.dest
       }, crypto.randomUUID());
-      // We don't update local state here! We wait for the RANK_UPDATE WebSocket event
-      // to trigger a re-fetch, guaranteeing consistency with the server.
     } catch (err) {
       alert(`Bid rejected: ${err.message}`);
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Loading auction details...</div>;
+  if (loading) return <p>Loading...</p>;
   if (error) return (
-    <div className="p-8 text-center">
-      <p className="text-destructive mb-4">Error: {error}</p>
-      <Link to="/auctions" className="text-primary underline">← Back to all auctions</Link>
+    <div>
+      <p className="text-destructive mb-2">Error: {error}</p>
+      <Link to="/auctions" className="underline text-sm">← Back</Link>
     </div>
   );
-  if (!rfq) return <div className="p-8 text-center">Auction not found. <Link to="/auctions" className="text-primary underline">← Back</Link></div>;
+  if (!rfq) return <p>Auction not found. <Link to="/auctions" className="underline">← Back</Link></p>;
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-      <div className="flex items-center justify-between mb-8">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{rfq.name || `RFQ #${rfq.id}`}</h1>
-          <p className="text-muted-foreground mt-1">RFQ ID: {rfq.id} • Pickup: {new Date(rfq.pickup_date).toLocaleDateString()}</p>
+          <h1 className="text-2xl font-bold">{rfq.title || `RFQ #${rfq.id}`}</h1>
+          <p className="text-sm text-muted-foreground">
+            RFQ #{rfq.id} · Pickup {new Date(rfq.pickup_date).toLocaleDateString()}
+          </p>
         </div>
-        <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'} className="text-sm px-3 py-1">
-          {rfq.status}
-        </Badge>
+        <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>{rfq.status}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: RFQ Info & Ranking */}
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Auction Information</CardTitle>
-              <CardDescription>Details and rules for this specific RFQ</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground font-medium">Start Time</p>
-                  <p>{new Date(rfq.bid_start_at).toLocaleTimeString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground font-medium">Close Time</p>
-                  <p>{new Date(rfq.bid_close_at).toLocaleTimeString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground font-medium">Extension</p>
-                  <p>{rfq.extension_minutes} minutes</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground font-medium">Trigger Window</p>
-                  <p>Last {rfq.trigger_window_minutes} minutes</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Left: info + ranking */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="border rounded-md p-4 text-sm">
+            <p className="font-medium mb-2">Auction Information</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-muted-foreground">
+              <div><span className="block text-foreground font-medium">{new Date(rfq.bid_start_at).toLocaleTimeString()}</span>Start</div>
+              <div><span className="block text-foreground font-medium">{new Date(rfq.bid_close_at).toLocaleTimeString()}</span>Close</div>
+              <div><span className="block text-foreground font-medium">{rfq.extension_minutes}m</span>Extension</div>
+              <div><span className="block text-foreground font-medium">Last {rfq.trigger_window_minutes}m</span>Window</div>
+            </div>
+          </div>
 
-          <RankingTable bids={bids.map(b => ({ ...b, time: new Date(b.created_at).toLocaleTimeString(), carrierName: b.carrier_name }))} />
+          <RankingTable bids={bids} />
         </div>
 
-        {/* Right Column: Countdown, Form & Logs */}
-        <div className="space-y-6">
+        {/* Right: countdown, bid form, log */}
+        <div className="space-y-4">
           <Countdown bidCloseAt={rfq.bid_close_at} />
-
           {rfq.status === 'OPEN' && (
-            <BidForm 
-              currentL1={currentL1} 
-              onSubmit={handleBidSubmit} 
-            />
+            <BidForm currentL1={currentL1} onSubmit={handleBidSubmit} />
           )}
-
           <ActivityLog logs={logs} />
         </div>
       </div>

@@ -6,36 +6,17 @@ import CreateRFQ from '@/pages/CreateRFQ';
 
 function Layout() {
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b px-6 py-3 flex items-center justify-between bg-card sticky top-0 z-50">
-        <NavLink to="/auctions" className="font-bold text-lg tracking-tight hover:text-primary transition-colors">
-          British Auction Platform
+    <div>
+      <nav className="border-b px-6 py-3 flex items-center gap-6">
+        <span className="font-semibold">BritishRFQ</span>
+        <NavLink to="/auctions" end className={({ isActive }) => isActive ? "text-sm font-medium" : "text-sm text-muted-foreground"}>
+          Auctions
         </NavLink>
-        <div className="flex items-center gap-2">
-          <NavLink
-            to="/auctions"
-            end
-            className={({ isActive }) =>
-              `px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              }`
-            }
-          >
-            All Auctions
-          </NavLink>
-          <NavLink
-            to="/auctions/create"
-            className={({ isActive }) =>
-              `px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                isActive ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-              }`
-            }
-          >
-            Create RFQ
-          </NavLink>
-        </div>
+        <NavLink to="/auctions/create" className={({ isActive }) => isActive ? "text-sm font-medium" : "text-sm text-muted-foreground"}>
+          Create RFQ
+        </NavLink>
       </nav>
-      <main className="py-6">
+      <main className="p-6 max-w-6xl mx-auto">
         <Outlet />
       </main>
     </div>

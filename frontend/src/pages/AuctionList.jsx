@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getRFQList } from '@/api/auctionApi';
@@ -17,67 +16,33 @@ export default function AuctionList() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading auctions...</div>;
-  if (error) return <div className="p-8 text-center text-destructive">Error: {error}</div>;
+  if (loading) return <p className="text-muted-foreground">Loading...</p>;
+  if (error) return <p className="text-destructive">Error: {error}</p>;
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-5xl">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Live Auctions</h1>
-          <p className="text-muted-foreground mt-1">All active and recent British Auction RFQs</p>
-        </div>
-        <Button asChild>
-          <Link to="/auctions/create">+ Create RFQ</Link>
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Auctions</h1>
+        <Button asChild size="sm">
+          <Link to="/auctions/create">+ New RFQ</Link>
         </Button>
       </div>
 
       {rfqs.length === 0 ? (
-        <Card className="text-center py-16">
-          <CardContent>
-            <p className="text-muted-foreground mb-4">No auctions yet. Be the first to create one!</p>
-            <Button asChild>
-              <Link to="/auctions/create">Create RFQ</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <p className="text-muted-foreground">No auctions yet. <Link to="/auctions/create" className="underline">Create one</Link>.</p>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {rfqs.map(rfq => (
-            <Link key={rfq.id} to={`/auctions/${rfq.id}`} className="block">
-              <Card className="hover:border-primary/50 hover:shadow-md transition-all duration-200 cursor-pointer">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{rfq.title}</CardTitle>
-                    <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>
-                      {rfq.status}
-                    </Badge>
-                  </div>
-                  <CardDescription>RFQ #{rfq.id}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground font-medium">Pickup Date</p>
-                      <p>{new Date(rfq.pickup_date + "Z").toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium">Closes At</p>
-                      <p>{new Date(rfq.bid_close_at + "Z").toLocaleTimeString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium">Current L1</p>
-                      <p className="font-semibold text-primary">
-                        {rfq.current_l1_bid ? `£${rfq.current_l1_bid.toFixed(2)}` : 'No bids yet'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground font-medium">L1 Supplier</p>
-                      <p>{rfq.current_l1_supplier ?? '—'}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <Link key={rfq.id} to={`/auctions/${rfq.id}`} className="block border rounded-md p-4 hover:bg-accent">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">{rfq.title}</span>
+                <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>{rfq.status}</Badge>
+              </div>
+              <div className="flex gap-6 text-sm text-muted-foreground">
+                <span>Pickup: {new Date(rfq.pickup_date + "Z").toLocaleDateString()}</span>
+                <span>Closes: {new Date(rfq.bid_close_at + "Z").toLocaleTimeString()}</span>
+                <span>L1: {rfq.current_l1_bid ? `£${rfq.current_l1_bid.toFixed(2)}` : '—'}</span>
+              </div>
             </Link>
           ))}
         </div>

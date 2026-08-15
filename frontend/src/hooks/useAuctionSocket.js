@@ -6,8 +6,8 @@ export default function useAuctionSocket(rfqId, { onRankUpdate, onAuctionExtende
   useEffect(() => {
     if (!rfqId) return;
 
-    // Use environment variable for WebSocket URL in production, hardcoded localhost for dev
-    const wsUrl = `ws://localhost:8000/api/ws/rfqs/${rfqId}`;
+    const WS_BASE = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000/api/ws';
+    const wsUrl = `${WS_BASE}/rfqs/${rfqId}`;
     socketRef.current = new WebSocket(wsUrl);
 
     socketRef.current.onopen = () => {
