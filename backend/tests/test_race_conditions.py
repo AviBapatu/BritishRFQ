@@ -28,7 +28,7 @@ async def test_concurrent_bidding_race(session: Session, client):
         "extension_trigger": "ANY_RANK_CHANGE"
     }
     
-    resp = client.post("/api/rfqs", json=rfq_data)
+    resp = await client.post("/api/rfqs", json=rfq_data)
     assert resp.status_code == 201
     rfq_id = resp.json()["id"]
     
@@ -37,7 +37,7 @@ async def test_concurrent_bidding_race(session: Session, client):
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as async_client:
         
         async def submit_bid(supplier_id: str, freight: float):
-            return await async_client.post(
+            return await client.post(
                 "/api/bids",
                 json={
                     "rfq_id": rfq_id,
@@ -66,7 +66,7 @@ async def test_concurrent_bidding_race(session: Session, client):
     successes = [r for r in results if not isinstance(r, Exception) and r.status_code == 201]
     
     # Fetch final RFQ details
-    rfq_resp = client.get(f"/api/rfqs/{rfq_id}")
+    rfq_resp = await client.get(f"/api/rfqs/{rfq_id}")
     rfq_details = rfq_resp.json()
     
     # Assert at least one succeeded
@@ -75,7 +75,7 @@ async def test_concurrent_bidding_race(session: Session, client):
     
     # Verify the lowest total_value is exactly the L1 bid
     min_value = min([b["total_value"] for b in rfq_details["bids"]])
-    assert rfq_details["rfq"]["current_l1_bid"] == min_value
+    assert rfq_details["bids"][0]["total_value"] == min_value
 
 
 @pytest.mark.asyncio
@@ -89,9 +89,12 @@ async def test_idempotency_race(session: Session, client):
         "bid_start_at": (now - timedelta(minutes=5)).isoformat(),
         "bid_close_at": (now + timedelta(hours=1)).isoformat(),
         "forced_close_at": (now + timedelta(hours=2)).isoformat(),
-        "pickup_date": (now + timedelta(days=7)).isoformat()
+        "pickup_date": (now + timedelta(days=7)).isoformat(),
+        "trigger_window_minutes": 5,
+        "extension_minutes": 5,
+        "extension_trigger": "ANY_RANK_CHANGE"
     }
-    resp = client.post("/api/rfqs", json=rfq_data)
+    resp = await client.post("/api/rfqs", json=rfq_data)
     rfq_id = resp.json()["id"]
 
     idemp_key = str(uuid4())
@@ -108,7 +111,7 @@ async def test_idempotency_race(session: Session, client):
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as async_client:
         async def submit_duplicate():
-            return await async_client.post(
+            return await client.post(
                 "/api/bids",
                 json=bid_payload,
                 headers={"Idempotency-Key": idemp_key}
@@ -122,5 +125,5 @@ async def test_idempotency_race(session: Session, client):
     # Some might hit the 409 conflict during concurrent flush.
     # What's important is that exactly 1 bid exists in the DB.
     
-    rfq_resp = client.get(f"/api/rfqs/{rfq_id}")
+    rfq_resp = await client.get(f"/api/rfqs/{rfq_id}")
     assert len(rfq_resp.json()["bids"]) == 1

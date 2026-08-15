@@ -4,7 +4,6 @@ from uuid import uuid4
 import random
 import itertools
 
-# Global counter that counts DOWN to guarantee each bid is lower than the last
 bid_counter = itertools.count(start=400000, step=-1)
 
 class SupplierUser(HttpUser):

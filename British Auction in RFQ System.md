@@ -313,4 +313,57 @@ Frontend Code
 
 Good luck and happy hacking!
 
+---
+
+## High Level Architecture & Sequence Diagrams
+
+### System Architecture
+```mermaid
+graph TD
+    Client1[Supplier A WebSocket] --> LB[Load Balancer]
+    Client2[Supplier B WebSocket] --> LB
+    
+    LB --> API1[FastAPI Worker 1]
+    LB --> API2[FastAPI Worker 2]
+    
+    API1 <--> Redis[(Redis Pub/Sub)]
+    API2 <--> Redis
+    
+    API1 --> DB[(PostgreSQL asyncpg)]
+    API2 --> DB
+    
+    subgraph "Stateless Backend"
+        API1
+        API2
+    end
+```
+
+### Bidding & Redis Pub/Sub Sequence Flow
+```mermaid
+sequenceDiagram
+    participant Supplier as Supplier A
+    participant API1 as FastAPI Worker 1
+    participant DB as PostgreSQL
+    participant Redis as Redis Pub/Sub
+    participant API2 as FastAPI Worker 2
+    participant Competitor as Supplier B
+
+    Supplier->>API1: POST /api/bids (payload, Idempotency-Key)
+    API1->>DB: async GET RFQ (Non-blocking)
+    API1->>DB: async SELECT L1 Bid (Eager Validation)
+    
+    Note over API1,DB: Pessimistic Lock Acquired
+    API1->>DB: async SELECT FOR UPDATE RFQ
+    API1->>DB: async INSERT Bid & Activity Log
+    API1->>DB: async COMMIT
+    
+    API1->>Redis: PUBLISH rfq_updates {rfq_id, payload}
+    API1-->>Supplier: 201 Created (Bid Success)
+    
+    Redis-->>API1: push message (subscriber loop)
+    Redis-->>API2: push message (subscriber loop)
+    
+    API2->>Competitor: WebSocket send_json(payload)
+```
+
 

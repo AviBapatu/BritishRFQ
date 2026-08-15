@@ -1,4 +1,6 @@
-def test_create_rfq_and_submit_bid(client):
+import pytest
+@pytest.mark.asyncio
+async def test_create_rfq_and_submit_bid(client):
     # 1. Create a dummy RFQ
     rfq_data = {
         "title": "Test RFQ",
@@ -11,7 +13,7 @@ def test_create_rfq_and_submit_bid(client):
         "extension_minutes": 5,
         "extension_trigger": "ANY_BID"
     }
-    response = client.post("/api/rfqs", json=rfq_data)
+    response = await client.post("/api/rfqs", json=rfq_data)
     assert response.status_code == 201
     rfq_id = response.json()["id"]
 
@@ -28,12 +30,12 @@ def test_create_rfq_and_submit_bid(client):
     }
     headers = {"Idempotency-Key": "00000000-0000-0000-0000-000000000123"}
     
-    res1 = client.post("/api/bids", json=bid_1_payload, headers=headers)
+    res1 = await client.post("/api/bids", json=bid_1_payload, headers=headers)
     assert res1.status_code == 201
     assert res1.json()["total_value"] == 10000
 
     # 3. Test Idempotency (Same key, should return 201 and not create a new bid)
-    res2 = client.post("/api/bids", json=bid_1_payload, headers=headers)
+    res2 = await client.post("/api/bids", json=bid_1_payload, headers=headers)
     assert res2.status_code == 201
     assert res2.json()["id"] == res1.json()["id"] # Must return the exact same bid
 
@@ -48,5 +50,5 @@ def test_create_rfq_and_submit_bid(client):
         "origin_charge": 1000,
         "destination_charge": 1000
     }
-    res_tie = client.post("/api/bids", json=bid_tie_payload, headers={"Idempotency-Key": "00000000-0000-0000-0000-000000000456"})
+    res_tie = await client.post("/api/bids", json=bid_tie_payload, headers={"Idempotency-Key": "00000000-0000-0000-0000-000000000456"})
     assert res_tie.status_code == 400 # Strict lower rule

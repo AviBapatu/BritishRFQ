@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: british_rfq
+    ports:
+      - "5435:5432"
+  
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
