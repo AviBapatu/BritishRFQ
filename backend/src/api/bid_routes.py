@@ -51,10 +51,7 @@ def submit_bid(
             )
         return existing_bid
 
-    # will select the row we want to update then queues every request one by one so we can update everything inorder
-    rfq = session.exec(
-        select(RFQ).where(RFQ.id == bid_in.rfq_id).with_for_update()
-    ).one_or_none()
+    rfq = session.get(RFQ, bid_in.rfq_id)
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
     
@@ -68,6 +65,12 @@ def submit_bid(
         raise HTTPException(status_code=400, detail="Auction has not started yet")
 
     new_bid_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
+
+    current_l1 = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc())).first()
+    if current_l1 and new_bid_total >= current_l1.total_value:
+        raise HTTPException(status_code=400, detail="Bid must be strictly lower than the current L1 bid")
+
+    session.refresh(rfq, with_for_update=True)
 
     prev_bids = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
 
