@@ -31,6 +31,8 @@ Load testing was performed using **Locust** against a live local instance of the
 
 ## Results Summary
 
+> **Note on the high failure rate:** All 753 failures are intentional, expected `400 Bad Request` responses — not crashes or data corruption. This test was run against the **pre-fix** validation logic which required every bid to beat the global L1. Because 1,000 virtual suppliers all race to undercut the same single L1 value simultaneously, only one bid per race window succeeds; the rest are correctly rejected. The race conditions were handled gracefully by the pessimistic `SELECT FOR UPDATE` lock — **zero data corruption or 500 errors were observed**. This has since been corrected per the spec: bids now only need to beat a supplier's own personal best.
+
 ### Aggregated (All Endpoints)
 
 | Metric | Value |
@@ -63,8 +65,6 @@ Load testing was performed using **Locust** against a live local instance of the
 | P99 | 5,500 ms |
 | Min / Max | 18 ms / 7,003 ms |
 | Total RPS | 20.25 req/s |
-
-> **Note on the high failure rate:** All 753 failures are intentional, expected `400 Bad Request` responses — not crashes or data corruption. This test was run against the **pre-fix** validation logic which required every bid to beat the global L1. Because 1,000 virtual suppliers all race to undercut the same single L1 value simultaneously, only one bid per race window succeeds; the rest are correctly rejected. The race conditions were handled gracefully by the pessimistic `SELECT FOR UPDATE` lock — **zero data corruption or 500 errors were observed**. This has since been corrected per the spec: bids now only need to beat a supplier's own personal best.
 
 ---
 
