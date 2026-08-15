@@ -1,3 +1,11 @@
+<div align="center">
+  <strong>📄 README</strong> &nbsp;|&nbsp; 
+  <a href="./System%20Architecture.md">🏗️ System Architecture</a> &nbsp;|&nbsp; 
+  <a href="./Sequence%20Diagram.md">🔄 Sequence Diagram</a>
+</div>
+
+<br/>
+
 # BritishRFQ
 
 BritishRFQ is a real-time, reverse-auction platform for freight bidding. It allows suppliers to bid on freight RFQs (Request For Quotes) in a highly concurrent environment. The system natively handles auction extensions, forced closures, real-time WebSocket updates powered by Redis Pub/Sub, and robust idempotency for bid submission.
@@ -34,7 +42,7 @@ This project utilizes a modern, highly scalable stack across the frontend, backe
 
 The architecture is designed to handle high-frequency bidding while maintaining strict atomicity and monotonic rank calculation. 
 
-*Please see the full native architecture diagram here: **[System Architecture.md](System Architecture.md)***
+*Please see the full native architecture diagram here: **[System Architecture](./System%20Architecture.md)***
 
 ---
 
@@ -42,7 +50,7 @@ The architecture is designed to handle high-frequency bidding while maintaining 
 
 The following sequence diagram illustrates the lifecycle of a Bid submission, highlighting the pessimistic locking, idempotency check, and asynchronous Redis broadcasting.
 
-*Please see the full native sequence diagram here: **[Sequence Diagram.md](Sequence Diagram.md)***
+*Please see the full native sequence diagram here: **[Sequence Diagram](./Sequence%20Diagram.md)***
 
 ---
 

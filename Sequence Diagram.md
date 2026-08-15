@@ -1,3 +1,11 @@
+<div align="center">
+  <a href="./README.md">📄 README</a> &nbsp;|&nbsp; 
+  <a href="./System%20Architecture.md">🏗️ System Architecture</a> &nbsp;|&nbsp; 
+  <strong>🔄 Sequence Diagram</strong>
+</div>
+
+<br/>
+
 # Sequence Diagram
 
 ```mermaid
