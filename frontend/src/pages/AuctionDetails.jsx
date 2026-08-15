@@ -35,13 +35,13 @@ export default function AuctionDetails() {
         bid_close_at: data.rfq.bid_close_at + "Z",
         forced_close_at: data.rfq.forced_close_at + "Z",
         pickup_date: data.rfq.pickup_date + "Z",
-        created_at: data.rfq.created_at + "Z",
+        created_at: data.rfq.created_at, // stored as local time, no Z needed
       });
       setBids(data.bids.map(b => ({
         ...b,
         totalValue: b.total_value,
         carrierName: b.carrier_name,
-        time: new Date(b.created_at + "Z").toLocaleTimeString()
+        time: new Date(b.created_at).toLocaleTimeString() // local time, no Z
       })));
       setLogs(data.activity_logs.map(log => ({
         id: log.id,
@@ -49,7 +49,7 @@ export default function AuctionDetails() {
         message: JSON.parse(log.metadata_snapshot)?.bid_value
           ? `New Bid: £${JSON.parse(log.metadata_snapshot).bid_value}`
           : log.reason || "Event occurred",
-        time: new Date(log.created_at + "Z").toLocaleTimeString()
+        time: new Date(log.created_at).toLocaleTimeString() // local time, no Z
       })));
       setError(null);
     } catch (err) {
