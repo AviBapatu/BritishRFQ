@@ -25,7 +25,12 @@ graph TD
         API --> AE
         API --> BT
         AE --> DAL
-        BT -- "Triggers side effect\n(After API response)" --> WSM
+        BT -- "Triggers broadcast\n(After API response)" --> WSM
+    end
+
+    %% Message Broker
+    subgraph Message Broker
+        Redis[(Redis Pub/Sub)]
     end
 
     %% Database Layer (The Source of Truth)
@@ -42,6 +47,8 @@ graph TD
 
     %% Connections & Flow
     DAL -- "BEGIN\nSELECT ... FOR UPDATE\n(Evaluate & Write)\nCOMMIT" --> DB
+    WSM -- "Publish updates\nto 'rfq_updates'" --> Redis
+    Redis -- "Broadcast message\nto all connected nodes" --> WSM
     
     %% Worker Flow
     AE -. "Schedules/Replaces future close attempt\n(Old tasks replaced)" .-> BW

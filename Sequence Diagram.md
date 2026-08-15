@@ -8,6 +8,7 @@ sequenceDiagram
     participant Engine as Auction Engine
     participant DB as PostgreSQL (via DAL)
     participant Worker as Background Worker (APScheduler)
+    participant Redis as Redis Pub/Sub
     participant WS as WebSocket Manager
 
     Supplier->>API: POST /bids (freight, origin, dest, Idempotency-Key)
@@ -40,6 +41,8 @@ sequenceDiagram
         Engine->>Worker: Schedule close attempt for bid_close_at (replaces old job)
         Engine->>API: Add WS broadcast to FastAPI BackgroundTasks
         API->>WS: Broadcast Delta (Rank Change / Time Ext)
+        WS->>Redis: Publish Message to 'rfq_updates' Channel
+        Redis-->>WS: Deliver Message to Subscribed Instances
         WS-->>Supplier: Emit JSON {"type": "RANK_UPDATE", ...}
     end
     
