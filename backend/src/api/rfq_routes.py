@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func
 from sqlmodel import select
 
 from core.database import get_session
@@ -43,21 +44,30 @@ async def get_rfq_details(rfq_id: int, session: AsyncSession = Depends(get_sessi
     rfq = rfq_result.scalar_one_or_none()
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
-        
-    bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc()).limit(100))
-    bids = bids_result.scalars().all()
-    
+
+    # Per-supplier leaderboard: one row per supplier = their best (lowest) bid
+    best_subq = (
+        select(Bid.supplier_id, func.min(Bid.total_value).label("best_value"))
+        .where(Bid.rfq_id == rfq_id)
+        .group_by(Bid.supplier_id)
+        .subquery()
+    )
+    leaderboard_result = await session.execute(
+        select(Bid)
+        .join(best_subq, (Bid.supplier_id == best_subq.c.supplier_id) & (Bid.total_value == best_subq.c.best_value))
+        .where(Bid.rfq_id == rfq_id)
+        .order_by(Bid.total_value.asc(), Bid.created_at.asc())
+    )
+    bids = leaderboard_result.scalars().all()
+
     logs_result = await session.execute(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.desc()).limit(100))
     logs = list(reversed(logs_result.scalars().all()))
-    
-    ranked_bids = []
-    for index, bid in enumerate(bids):
-        ranked_bids.append({
-            **bid.model_dump(),
-            "rank": index + 1,
-            "rank_label": f"L{index + 1}"
-        })
-    
+
+    ranked_bids = [
+        {**bid.model_dump(), "rank": index + 1, "rank_label": f"L{index + 1}"}
+        for index, bid in enumerate(bids)
+    ]
+
     return {
         "rfq": rfq,
         "bids": ranked_bids,

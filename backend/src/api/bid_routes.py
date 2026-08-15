@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func
 from sqlmodel import select
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
@@ -69,27 +70,41 @@ async def submit_bid(
 
     new_bid_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
 
-    current_l1_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc()))
-    current_l1 = current_l1_result.scalars().first()
-    if current_l1 and new_bid_total >= current_l1.total_value:
-        raise HTTPException(status_code=400, detail="Bid must be strictly lower than the current L1 bid")
+    # Validate against supplier's own personal best bid (not global L1).
+    # This allows suppliers to improve their own position without needing to
+    # beat the current L1, making the three extension triggers meaningfully distinct.
+    supplier_best_result = await session.execute(
+        select(Bid)
+        .where(Bid.rfq_id == rfq.id, Bid.supplier_id == bid_in.supplier_id)
+        .order_by(Bid.total_value.asc())
+    )
+    supplier_best = supplier_best_result.scalars().first()
+    if supplier_best and new_bid_total >= supplier_best.total_value:
+        raise HTTPException(
+            status_code=400,
+            detail="Bid must be strictly lower than your current best bid"
+        )
 
     stmt = select(RFQ).where(RFQ.id == rfq.id).with_for_update()
     result = await session.execute(stmt)
     rfq = result.scalar_one()
 
-    prev_bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc()))
-    prev_bids = prev_bids_result.scalars().all()
+    # Build per-supplier leaderboard (one entry per supplier = their best bid)
+    prev_best_subq = (
+        select(Bid.supplier_id, func.min(Bid.total_value).label("best_value"))
+        .where(Bid.rfq_id == rfq.id)
+        .group_by(Bid.supplier_id)
+        .subquery()
+    )
+    prev_leaderboard_result = await session.execute(
+        select(prev_best_subq.c.supplier_id, prev_best_subq.c.best_value)
+        .order_by(prev_best_subq.c.best_value.asc())
+    )
+    prev_leaderboard = prev_leaderboard_result.all()  # list of (supplier_id, best_value)
 
-    if prev_bids:
-        prev_l1_supplier = prev_bids[0].supplier_id
-        if new_bid_total >= prev_bids[0].total_value:
-            raise HTTPException(status_code=400, detail="Bid must be strictly lower than the current L1 bid")
-    else:
-        prev_l1_supplier = None
-
+    prev_l1_supplier = prev_leaderboard[0].supplier_id if prev_leaderboard else None
     prev_supplier_rank = next(
-        (index for index, b in enumerate(prev_bids) if b.supplier_id == bid_in.supplier_id),
+        (index for index, row in enumerate(prev_leaderboard) if row.supplier_id == bid_in.supplier_id),
         None
     )
 
@@ -104,13 +119,21 @@ async def submit_bid(
     session.add(new_bid)
     await session.flush()
 
-    new_bids_result = await session.execute(
-        select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
+    # Re-build per-supplier leaderboard after inserting the new bid
+    new_best_subq = (
+        select(Bid.supplier_id, func.min(Bid.total_value).label("best_value"))
+        .where(Bid.rfq_id == rfq.id)
+        .group_by(Bid.supplier_id)
+        .subquery()
     )
-    new_bids = new_bids_result.scalars().all()
+    new_leaderboard_result = await session.execute(
+        select(new_best_subq.c.supplier_id, new_best_subq.c.best_value)
+        .order_by(new_best_subq.c.best_value.asc())
+    )
+    new_leaderboard = new_leaderboard_result.all()
 
-    new_l1_supplier = new_bids[0].supplier_id
-    new_supplier_rank = next(index for index, b in enumerate(new_bids) if b.supplier_id == bid_in.supplier_id)
+    new_l1_supplier = new_leaderboard[0].supplier_id
+    new_supplier_rank = next(index for index, row in enumerate(new_leaderboard) if row.supplier_id == bid_in.supplier_id)
 
     l1_changed = prev_l1_supplier != new_l1_supplier
     rank_changed = prev_supplier_rank != new_supplier_rank
