@@ -118,11 +118,13 @@ export default function AuctionDetails() {
         <div className="lg:col-span-2 space-y-4">
           <div className="border rounded-md p-4 text-sm">
             <p className="font-medium mb-2">Auction Information</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-muted-foreground">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-muted-foreground">
               <div><span className="block text-foreground font-medium">{new Date(rfq.bid_start_at).toLocaleTimeString()}</span>Start</div>
               <div><span className="block text-foreground font-medium">{new Date(rfq.bid_close_at).toLocaleTimeString()}</span>Close</div>
+              <div><span className="block text-foreground font-medium">{new Date(rfq.forced_close_at).toLocaleTimeString()}</span>Force Close</div>
               <div><span className="block text-foreground font-medium">{rfq.extension_minutes}m</span>Extension</div>
               <div><span className="block text-foreground font-medium">Last {rfq.trigger_window_minutes}m</span>Window</div>
+              <div><span className="block text-foreground font-medium">{rfq.extension_trigger?.replace(/_/g, ' ')}</span>Trigger</div>
             </div>
           </div>
 
