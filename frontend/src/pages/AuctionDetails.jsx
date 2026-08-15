@@ -11,6 +11,15 @@ import { getRFQDetails, submitBidAPI } from '@/api/auctionApi';
 export default function AuctionDetails() {
   const { id } = useParams();
   const rfqId = parseInt(id, 10);
+
+  const supplierId = (() => {
+    const key = 'britishrfq_supplier_id';
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, 'supplier_' + Math.random().toString(36).slice(2, 8));
+    }
+    return localStorage.getItem(key);
+  })();
+
   const [bids, setBids] = useState([]);
   const [logs, setLogs] = useState([]);
   const [rfq, setRfq] = useState(null);
@@ -71,8 +80,8 @@ export default function AuctionDetails() {
     try {
       await submitBidAPI({
         rfq_id: rfqId,
-        supplier_id: "demo_supplier",
-        carrier_name: "You (Demo Carrier)",
+        supplier_id: supplierId,
+        carrier_name: supplierId,
         transit_time: "2 days",
         quote_validity: new Date(new Date().getTime() + 86400000).toISOString(),
         freight_charge: data.freight,
@@ -99,7 +108,7 @@ export default function AuctionDetails() {
         <div>
           <h1 className="text-2xl font-bold">{rfq.title || `RFQ #${rfq.id}`}</h1>
           <p className="text-sm text-muted-foreground">
-            RFQ #{rfq.id} · Pickup {new Date(rfq.pickup_date).toLocaleDateString()}
+            RFQ #{rfq.id} · Pickup {new Date(rfq.pickup_date).toLocaleDateString()} · You: <span className="font-mono font-medium text-foreground">{supplierId}</span>
           </p>
         </div>
         <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>{rfq.status}</Badge>
