@@ -4,7 +4,7 @@ from sqlalchemy import func
 from sqlmodel import select
 
 from core.database import get_session
-from models.domain import RFQ, Bid, ActivityLog, RFQBase, RFQRead
+from models.domain import RFQ, Bid, ActivityLog, RFQBase, RFQRead, BidRead
 from engine.worker import schedule_auction_closure
 from ws.manager import manager
 
@@ -64,7 +64,7 @@ async def get_rfq_details(rfq_id: int, session: AsyncSession = Depends(get_sessi
     logs = list(reversed(logs_result.scalars().all()))
 
     ranked_bids = [
-        {**bid.model_dump(), "rank": index + 1, "rank_label": f"L{index + 1}"}
+        {**BidRead.model_validate(bid).model_dump(), "rank": index + 1, "rank_label": f"L{index + 1}"}
         for index, bid in enumerate(bids)
     ]
 

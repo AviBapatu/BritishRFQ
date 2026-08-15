@@ -2,6 +2,7 @@
   <strong>README</strong> &nbsp;|&nbsp; 
   <a href="./System%20Architecture.md">System Architecture</a> &nbsp;|&nbsp; 
   <a href="./Sequence%20Diagram.md">Sequence Diagram</a> &nbsp;|&nbsp;
+  <a href="./Schema%20Design.md">Schema Design</a> &nbsp;|&nbsp;
   <a href="./Stress%20Test%20Results.md">Stress Test Results</a>
 </div>
 
@@ -98,9 +99,12 @@ Ensure you have PostgreSQL and Redis instances running locally (or via Docker), 
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt # (or use uv sync if configured)
+
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies (uv manages the virtualenv automatically)
+uv sync
 
 # Start the FastAPI server
 uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
@@ -119,9 +123,15 @@ The frontend will typically be accessible at `http://localhost:5173`.
 
 The backend includes a predefined Locust load testing script to test concurrent bidding capabilities and race condition handling.
 
+> **Important:** The Locust script targets a pre-seeded RFQ with `id = 52`. You must create this RFQ before starting the swarm:
+
 ```bash
 cd backend
-source .venv/bin/activate
-locust -f tests/locustfile.py
+
+# 1. Seed the database with the Locust test RFQ (id=52)
+uv run python seed.py
+
+# 2. Start the Locust swarm
+uv run locust -f tests/locustfile.py
 ```
 Access the Locust web interface at `http://localhost:8089` to start the swarm.
