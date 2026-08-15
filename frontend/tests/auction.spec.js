@@ -53,11 +53,11 @@ test.describe('British Auction Real-Time Constraints', () => {
 
     await pageBConnected;
 
-    await pageA.getByLabel('Freight Charge (£)').fill('4500');
+    await pageA.getByLabel('Freight Charge (₹)').fill('4500');
     await pageA.getByRole('button', { name: 'Submit Bid' }).click();
 
-    await expect(pageA.getByText('£4500.00')).toBeVisible({ timeout: 10000 });
-    await expect(pageB.getByText('£4500.00')).toBeVisible({ timeout: 15000 });
+    await expect(pageA.getByText('₹4500.00')).toBeVisible({ timeout: 10000 });
+    await expect(pageB.getByText('₹4500.00')).toBeVisible({ timeout: 15000 });
 
     await contextA.close();
     await contextB.close();
@@ -70,12 +70,12 @@ test.describe('British Auction Real-Time Constraints', () => {
     await page.goto(`${FRONTEND_URL}/auctions/${rfqId}`);
     await expect(page.getByText('Auction Information')).toBeVisible();
 
-    // First bid: £5000
-    await page.getByLabel('Freight Charge (£)').fill('5000');
+    // First bid: ₹5000
+    await page.getByLabel('Freight Charge (₹)').fill('5000');
     await page.getByRole('button', { name: 'Submit Bid' }).click();
-    await expect(page.getByText('£5000.00')).toBeVisible();
+    await expect(page.getByText('₹5000.00')).toBeVisible();
 
-    // Second bid (too high): £5500
+    // Second bid (too high): ₹5500
     // We expect the backend to reject this and the frontend to show an alert dialog.
     // Playwright auto-dismisses alerts, so we'll listen for it to verify the rejection text!
     let alertMessage = '';
@@ -84,7 +84,7 @@ test.describe('British Auction Real-Time Constraints', () => {
       dialog.dismiss();
     });
 
-    await page.getByLabel('Freight Charge (£)').fill('5500');
+    await page.getByLabel('Freight Charge (₹)').fill('5500');
     await page.getByRole('button', { name: 'Submit Bid' }).click();
 
     // Wait a moment for the alert to fire
@@ -120,9 +120,9 @@ test.describe('British Auction Real-Time Constraints', () => {
     const initialCountdownText = await page.locator('.text-4xl.font-bold.tracking-tighter').innerText();
 
     // Place a bid to trigger the extension
-    await page.getByLabel('Freight Charge (£)').fill('4000');
+    await page.getByLabel('Freight Charge (₹)').fill('4000');
     await page.getByRole('button', { name: 'Submit Bid' }).click();
-    await expect(page.getByRole('cell', { name: /£4000\.00/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('cell', { name: /₹4000\.00/ })).toBeVisible({ timeout: 10000 });
 
     // THE TIGHT ASSERTION: directly query the backend to verify the extension happened
     // and that bid_close_at was extended by exactly extension_minutes (5 min).

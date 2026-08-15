@@ -8,6 +8,12 @@ export default function AuctionList() {
   const [rfqs, setRfqs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     getRFQList()
@@ -32,20 +38,31 @@ export default function AuctionList() {
         <p className="text-muted-foreground">No auctions yet. <Link to="/auctions/create" className="underline">Create one</Link>.</p>
       ) : (
         <div className="space-y-3">
-          {rfqs.map(rfq => (
+          {rfqs.map(rfq => {
+            let displayStatus = rfq.status;
+            if (rfq.status === 'OPEN') {
+              if (now < new Date(rfq.bid_start_at + "Z")) {
+                displayStatus = 'UPCOMING';
+              } else if (now >= new Date(rfq.bid_close_at + "Z")) {
+                displayStatus = 'CLOSED';
+              }
+            }
+
+            return (
             <Link key={rfq.id} to={`/auctions/${rfq.id}`} className="block border rounded-md p-4 hover:bg-accent">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium">{rfq.title}</span>
-                <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>{rfq.status}</Badge>
+                <Badge variant={displayStatus === 'OPEN' ? 'default' : 'secondary'}>{displayStatus}</Badge>
               </div>
               <div className="flex gap-6 text-sm text-muted-foreground">
                 <span>Pickup: {new Date(rfq.pickup_date + "Z").toLocaleDateString()}</span>
                 <span>Closes: {new Date(rfq.bid_close_at + "Z").toLocaleTimeString()}</span>
                 <span>Force Close: {new Date(rfq.forced_close_at + "Z").toLocaleTimeString()}</span>
-                <span>L1: {rfq.current_l1_bid ? `£${rfq.current_l1_bid.toFixed(2)}` : '—'}</span>
+                <span>L1: {rfq.current_l1_bid ? `₹${rfq.current_l1_bid.toFixed(2)}` : '—'}</span>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

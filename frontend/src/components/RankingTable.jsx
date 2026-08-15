@@ -24,10 +24,10 @@ export default function RankingTable({ bids }) {
                 {bid.rank === 1 ? "🏆 L1" : `L${bid.rank}`}
               </TableCell>
               <TableCell>{bid.carrierName}</TableCell>
-              <TableCell>£{bid.freight_charge.toFixed(2)}</TableCell>
-              <TableCell>£{bid.origin_charge.toFixed(2)}</TableCell>
-              <TableCell>£{bid.destination_charge.toFixed(2)}</TableCell>
-              <TableCell className="font-medium">£{bid.totalValue.toFixed(2)}</TableCell>
+              <TableCell>₹{bid.freight_charge.toFixed(2)}</TableCell>
+              <TableCell>₹{bid.origin_charge.toFixed(2)}</TableCell>
+              <TableCell>₹{bid.destination_charge.toFixed(2)}</TableCell>
+              <TableCell className="font-medium">₹{bid.totalValue.toFixed(2)}</TableCell>
               <TableCell className="text-muted-foreground text-sm">
                 {new Date(bid.quote_validity).toLocaleDateString()}
               </TableCell>

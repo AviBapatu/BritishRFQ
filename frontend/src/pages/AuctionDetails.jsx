@@ -25,6 +25,12 @@ export default function AuctionDetails() {
   const [rfq, setRfq] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchAuctionData = useCallback(async () => {
     try {
@@ -47,7 +53,7 @@ export default function AuctionDetails() {
         id: log.id,
         eventType: log.event_type,
         message: JSON.parse(log.metadata_snapshot)?.bid_value
-          ? `New Bid: £${JSON.parse(log.metadata_snapshot).bid_value}`
+          ? `New Bid: ₹${JSON.parse(log.metadata_snapshot).bid_value}`
           : log.reason || "Event occurred",
         time: new Date(log.created_at).toLocaleTimeString()
       })));
@@ -102,6 +108,15 @@ export default function AuctionDetails() {
   );
   if (!rfq) return <p>Auction not found. <Link to="/auctions" className="underline">← Back</Link></p>;
 
+  let displayStatus = rfq.status;
+  if (rfq.status === 'OPEN') {
+    if (now < new Date(rfq.bid_start_at)) {
+      displayStatus = 'UPCOMING';
+    } else if (now >= new Date(rfq.bid_close_at)) {
+      displayStatus = 'CLOSED';
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -111,7 +126,7 @@ export default function AuctionDetails() {
             RFQ #{rfq.id} · Pickup {new Date(rfq.pickup_date).toLocaleDateString()} · You: <span className="font-mono font-medium text-foreground">{supplierId}</span>
           </p>
         </div>
-        <Badge variant={rfq.status === 'OPEN' ? 'default' : 'secondary'}>{rfq.status}</Badge>
+        <Badge variant={displayStatus === 'OPEN' ? 'default' : 'secondary'}>{displayStatus}</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -133,7 +148,7 @@ export default function AuctionDetails() {
 
         <div className="space-y-4">
           <Countdown bidCloseAt={rfq.bid_close_at} />
-          {rfq.status === 'OPEN' && (
+          {displayStatus === 'OPEN' && (
             <BidForm currentL1={currentL1} onSubmit={handleBidSubmit} />
           )}
           <ActivityLog logs={logs} />
