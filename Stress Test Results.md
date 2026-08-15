@@ -1,7 +1,7 @@
 <div align="center">
-  <a href="./README.md">📄 README</a> &nbsp;|&nbsp; 
-  <a href="./System%20Architecture.md">🏗️ System Architecture</a> &nbsp;|&nbsp; 
-  <a href="./Sequence%20Diagram.md">🔄 Sequence Diagram</a> &nbsp;|&nbsp;
+  <a href="./README.md">README</a> &nbsp;|&nbsp; 
+  <a href="./System%20Architecture.md">System Architecture</a> &nbsp;|&nbsp; 
+  <a href="./Sequence%20Diagram.md">Sequence Diagram</a> &nbsp;|&nbsp;
   <strong>Stress Test Results</strong>
 </div>
 
