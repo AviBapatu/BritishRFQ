@@ -48,7 +48,7 @@ class RFQBase(SQLModel):
 class RFQ(RFQBase, table=True):
     __tablename__ = "rfqs"
     id: Optional[int] = Field(default=None, primary_key=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     bids: List["Bid"] = Relationship(back_populates="rfq", cascade_delete=True)
 
@@ -79,7 +79,7 @@ class Bid(BidBase, table=True):
     idempotency_key: UUID = Field(index=True)
     payload_hash: str = Field(description="SHA-256 hash of canonical bid payload for idempotency comparison")
     total_value: float = Field(index=True)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     rfq: Optional[RFQ] = Relationship(back_populates="bids")
 
 class BidCreate(BidBase):
@@ -93,7 +93,7 @@ class ActivityLog(SQLModel, table=True):
     event_type: str = Field(index=True)
     reason: Optional[str] = Field(default=None)
     metadata_snapshot: Optional[str] = Field(default=None, description="JSON string of state") # FIXED: spelling
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class RFQRead(RFQBase):

@@ -1,12 +1,17 @@
-from sqlmodel import Session, create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./dev.db")
 
-engine_kwargs = {"echo": True}
+# Force asyncpg if postgresql is provided without it
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
+engine_kwargs = {"echo": False}
 if DATABASE_URL.startswith("postgresql"):
     engine_kwargs.update({
         "pool_size": 20,
@@ -14,8 +19,11 @@ if DATABASE_URL.startswith("postgresql"):
         "pool_timeout": 30
     })
 
-engine = create_engine(DATABASE_URL, **engine_kwargs)
+engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 
-def get_session():
-    with Session(engine) as session:
+async def get_session() -> AsyncSession:
+    async_session = sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with async_session() as session:
         yield session

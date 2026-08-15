@@ -9,10 +9,20 @@ from sqlmodel import SQLModel
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup logic
-    SQLModel.metadata.create_all(engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    
+    # Start background scheduler
     start_scheduler()
+    
+    # Start Redis WebSocket PubSub listener
+    from ws.manager import manager
+    await manager.startup()
+
     yield # App is running
-    # Shutdown logic (optional) would go here
+    
+    # Shutdown logic
+    await manager.shutdown()
 
 from fastapi.middleware.cors import CORSMiddleware
 

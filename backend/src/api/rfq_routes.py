@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 
 from core.database import get_session
 from models.domain import RFQ, Bid, ActivityLog, RFQBase, RFQRead
@@ -9,24 +10,26 @@ from ws.manager import manager
 router = APIRouter()
 
 @router.post("/rfqs", response_model=RFQRead, status_code=status.HTTP_201_CREATED)
-def create_rfq(rfq_in: RFQBase, session: Session = Depends(get_session)):
+async def create_rfq(rfq_in: RFQBase, session: AsyncSession = Depends(get_session)):
     rfq = RFQ(**rfq_in.model_dump())
     session.add(rfq)
-    session.commit()
-    session.refresh(rfq)
+    await session.commit()
+    await session.refresh(rfq)
     
     schedule_auction_closure(rfq)
     
     return rfq
 
 @router.get("/rfqs")
-def list_rfqs(session: Session = Depends(get_session)):
-    rfqs = session.exec(select(RFQ)).all()
+async def list_rfqs(session: AsyncSession = Depends(get_session)):
+    rfqs_result = await session.execute(select(RFQ))
+    rfqs = rfqs_result.scalars().all()
     result = []
     for rfq in rfqs:
-        l1_bid = session.exec(
+        l1_bid_result = await session.execute(
             select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
-        ).first()
+        )
+        l1_bid = l1_bid_result.scalars().first()
         result.append({
             **rfq.model_dump(),
             "current_l1_bid": l1_bid.total_value if l1_bid else None,
@@ -35,13 +38,17 @@ def list_rfqs(session: Session = Depends(get_session)):
     return result
 
 @router.get("/rfqs/{rfq_id}")
-def get_rfq_details(rfq_id: int, session: Session = Depends(get_session)):
-    rfq = session.exec(select(RFQ).where(RFQ.id == rfq_id)).one_or_none()
+async def get_rfq_details(rfq_id: int, session: AsyncSession = Depends(get_session)):
+    rfq_result = await session.execute(select(RFQ).where(RFQ.id == rfq_id))
+    rfq = rfq_result.scalar_one_or_none()
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
         
-    bids = session.exec(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
-    logs = session.exec(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc())).all()
+    bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq_id).order_by(Bid.total_value.asc(), Bid.created_at.asc()))
+    bids = bids_result.scalars().all()
+    
+    logs_result = await session.execute(select(ActivityLog).where(ActivityLog.rfq_id == rfq_id).order_by(ActivityLog.created_at.asc()))
+    logs = logs_result.scalars().all()
     
     ranked_bids = []
     for index, bid in enumerate(bids):
@@ -62,9 +69,6 @@ async def websocket_rfq(websocket: WebSocket, rfq_id: int):
     await manager.connect(websocket, rfq_id)
     try:
         while True:
-            # We don't expect messages from the client in this one-way broadcast,
-            # but we need to receive to keep the connection alive and detect disconnects
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket, rfq_id)
-

@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status, BackgroundTasks
-from sqlmodel import Session, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timezone
 from uuid import UUID
 import hashlib
 import json
+import asyncio
 
 from core.database import get_session
 from models.domain import RFQ, Bid, BidCreate, BidRead, ActivityLog, RFQStatus
@@ -27,21 +29,22 @@ def compute_payload_hash(bid_in: BidCreate) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 @router.post("/bids", response_model=BidRead, status_code=status.HTTP_201_CREATED)
-def submit_bid(
+async def submit_bid(
     bid_in: BidCreate,
     background_tasks: BackgroundTasks,
     idempotency_key: UUID = Header(alias="Idempotency-Key"),
-    session: Session = Depends(get_session)
+    session: AsyncSession = Depends(get_session)
 ):
-    current_time = datetime.now(timezone.utc)
+    current_time = datetime.now(timezone.utc).replace(tzinfo=None)
     incoming_hash = compute_payload_hash(bid_in)
 
-    existing_bid = session.exec(
+    existing_bid_result = await session.execute(
         select(Bid).where(
             Bid.supplier_id == bid_in.supplier_id,
             Bid.idempotency_key == idempotency_key
         )
-    ).one_or_none()
+    )
+    existing_bid = existing_bid_result.scalar_one_or_none()
 
     if existing_bid:
         if existing_bid.payload_hash != incoming_hash:
@@ -51,12 +54,12 @@ def submit_bid(
             )
         return existing_bid
 
-    rfq = session.get(RFQ, bid_in.rfq_id)
+    rfq = await session.get(RFQ, bid_in.rfq_id)
     if not rfq:
         raise HTTPException(status_code=404, detail="RFQ not found")
     
-    bid_close_at = rfq.bid_close_at.replace(tzinfo=timezone.utc) if rfq.bid_close_at.tzinfo is None else rfq.bid_close_at
-    bid_start_at = rfq.bid_start_at.replace(tzinfo=timezone.utc) if rfq.bid_start_at.tzinfo is None else rfq.bid_start_at
+    bid_close_at = rfq.bid_close_at.replace(tzinfo=None)
+    bid_start_at = rfq.bid_start_at.replace(tzinfo=None)
 
     if rfq.status != RFQStatus.OPEN or current_time >= bid_close_at:
         raise HTTPException(status_code=400, detail="Auction is closed for bidding")
@@ -66,13 +69,17 @@ def submit_bid(
 
     new_bid_total = bid_in.freight_charge + bid_in.origin_charge + bid_in.destination_charge
 
-    current_l1 = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc())).first()
+    current_l1_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc()))
+    current_l1 = current_l1_result.scalars().first()
     if current_l1 and new_bid_total >= current_l1.total_value:
         raise HTTPException(status_code=400, detail="Bid must be strictly lower than the current L1 bid")
 
-    session.refresh(rfq, with_for_update=True)
+    stmt = select(RFQ).where(RFQ.id == rfq.id).with_for_update()
+    result = await session.execute(stmt)
+    rfq = result.scalar_one()
 
-    prev_bids = session.exec(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())).all()
+    prev_bids_result = await session.execute(select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc()))
+    prev_bids = prev_bids_result.scalars().all()
 
     if prev_bids:
         prev_l1_supplier = prev_bids[0].supplier_id
@@ -95,11 +102,12 @@ def submit_bid(
     )
 
     session.add(new_bid)
-    session.flush()
+    await session.flush()
 
-    new_bids = session.exec(
+    new_bids_result = await session.execute(
         select(Bid).where(Bid.rfq_id == rfq.id).order_by(Bid.total_value.asc(), Bid.created_at.asc())
-    ).all()
+    )
+    new_bids = new_bids_result.scalars().all()
 
     new_l1_supplier = new_bids[0].supplier_id
     new_supplier_rank = next(index for index, b in enumerate(new_bids) if b.supplier_id == bid_in.supplier_id)
@@ -137,20 +145,21 @@ def submit_bid(
     session.add(bid_log)
 
     try:
-        session.commit()
+        await session.commit()
     except IntegrityError:
-        session.rollback()
-        existing_bid = session.exec(
+        await session.rollback()
+        existing_bid_result = await session.execute(
             select(Bid).where(
                 Bid.supplier_id == bid_in.supplier_id,
                 Bid.idempotency_key == idempotency_key
             )
-        ).one_or_none()
+        )
+        existing_bid = existing_bid_result.scalar_one_or_none()
         if existing_bid:
             return existing_bid
         raise HTTPException(status_code=409, detail="Conflict during bid submission, please retry")
 
-    session.refresh(new_bid)
+    await session.refresh(new_bid)
     
     background_tasks.add_task(
         manager.broadcast_to_rfq,
